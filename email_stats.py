@@ -2,9 +2,11 @@
 # pylint: disable=no-member
 """Get GMail email stats."""
 import argparse
+import datetime
 import json
 import os
 import time
+from pprint import pprint
 
 import httplib2
 from apiclient import discovery
@@ -86,18 +88,20 @@ class GMailStats:  # pylint: disable-msg=R0903
             for label in labels:
                 self._labels[label['id']] = label['name']
 
+    @staticmethod
+    def _results_filename():
+        now = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+        filename = 'results_%s.json' % now
+        while os.path.exists(filename):
+            time.sleep(1)
+            now = datetime.datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
+            filename = 'results_%s.json' % now
+        return filename
+
     def run(self):
         """."""
-        filename = 'results'
-        files = [f for f in os.listdir('.')
-                 if f.startswith(filename) and f.endswith('.txt')]
-        if files:
-            filename = '{}_{:02d}'.format(filename, len(files))
-        i = 0
-        while filename in files:
-            filename = '{}_{:02d}'.format(filename, len(files) + i)
-            i += 1
-        print('Saving results with filename: %s' % filename)
+        filename = self._results_filename()
+        print('- Saving results with filename: %s' % filename)
         self._stats = dict()
         start_time = time.time()
         request, response = None, None
@@ -124,29 +128,26 @@ class GMailStats:  # pylint: disable-msg=R0903
                 break
             for message in response['messages']:
                 message_id = message['id']
-                message_request = self._messages.get(userId='me', id=message_id,
+                message_request = self._messages.get(userId='me',
+                                                     id=message_id,
                                                      format='metadata',
                                                      metadataHeaders='From')
                 if message_request:
                     batch.add(request=message_request,
                               callback=self._process_messages)
+            # Evaluate message stats for the block.
             batch.execute(http=self._http)
             self._total_messages += len(response['messages'])
-            # block_elapsed = time.time() - block_start_time
-            # if block_elapsed < 1.05:
-            #     time.sleep(1.05 - block_elapsed)
             print('[%04i] Elapsed (s) = %-7.2f (+%.2f) [messages = %i]'
                   % (block_id, time.time() - start_time,
                      time.time() - block_start_time, self._total_messages))
             block_id += 1
+            # Save and print stats
             self._save_stats(filename)
-            # if self._total_messages >= 1:
-            #     break
 
-    def _save_stats(self, filename_root):
+    def _save_stats(self, filename):
         """."""
         # Sort by size.
-
         keys = sorted(self._stats,
                       key=lambda x: self._stats[x]['size'],
                       reverse=True)
@@ -156,7 +157,7 @@ class GMailStats:  # pylint: disable-msg=R0903
         sorted_dict = dict()
         sorted_dict['total_messages'] = self._total_messages
         sorted_dict['total_senders'] = len(self._stats)
-        sorted_dict['total_size'] = total_size
+        sorted_dict['total_size'] = ('%.2f MiB' % total_size)
         for key in keys:
             sorted_dict[key] = self._stats[key]
         # Print the results
@@ -164,15 +165,15 @@ class GMailStats:  # pylint: disable-msg=R0903
         print('-' * 80)
         for i, key in enumerate(sorted_dict.keys()):
             if not key.startswith('total_'):
-                print('%s | %4i | %7.2f MiB' % (key[:50],
-                                                sorted_dict[key]['count'],
-                                                sorted_dict[key]['size']))
+                print('%50s | %4i | %7.2f MiB' % (key[:50],
+                                                  sorted_dict[key]['count'],
+                                                  sorted_dict[key]['size']))
             else:
                 print('%s = %s' % (key, sorted_dict[key]))
             if i > 10:
                 break
         print('-' * 80)
-        with open('{}.json'.format(filename_root), 'w') as file:
+        with open('{}'.format(filename), 'w') as file:
             json.dump(sorted_dict, file, indent=2)
 
     # pylint: disable-msg=W0613
@@ -186,9 +187,15 @@ class GMailStats:  # pylint: disable-msg=R0903
             # pprint(response)
             if 'payload' not in response:
                 print('Warning: No payload...')
+                pprint(response)
+                return
+            if 'headers' not in response['payload']:
+                print('Warning: No headers...')
+                pprint(response)
                 return
             if len(response['payload']['headers']) > 1:
                 print('Warning: header length > 1')
+                pprint(response)
                 return
 
             size = response['sizeEstimate'] / 1024**2
