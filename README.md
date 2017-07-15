@@ -32,6 +32,12 @@ The JSON file contains a summary of all messages found in gmail organised by sen
 over all messages from that sender in MiB. Also shown are the number of messages from the sender and the aggregated gmail
 labels those messages are found in.
 
+# Using the results
+These results are particularly useful for cleaning up email in a gmail account. This can be done using the results and
+search operators descibed here: https://support.google.com/mail/answer/7190?hl=en. For example using the `from:` keywork
+with the sender address identified as sending a lot of unwanted messages can be used to quickly search for and bulk delete
+messages quickly.
+
 # References
 For description of the Google gmail Python API see:
 https://developers.google.com/gmail/api/quickstart/python
