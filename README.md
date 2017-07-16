@@ -41,3 +41,4 @@ messages quickly.
 # References
 For description of the Google gmail Python API see:
 https://developers.google.com/gmail/api/quickstart/python
+https://developers.google.com/resources/api-libraries/documentation/gmail/v1/python/latest/gmail_v1.users.html
